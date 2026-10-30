@@ -1,0 +1,90 @@
+/* ============================================================================
+   1. SCHEMA
+   ============================================================================ */
+
+DROP DATABASE IF EXISTS shop;
+CREATE DATABASE shop CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+USE shop;
+
+CREATE TABLE categories (
+  category_id  INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name         VARCHAR(80)  NOT NULL,
+  parent_id    INT UNSIGNED NULL,
+  PRIMARY KEY (category_id),
+  UNIQUE KEY uq_category_name (name),
+  CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id) REFERENCES categories (category_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE sellers (
+  seller_id  INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name       VARCHAR(120) NOT NULL,
+  email      VARCHAR(255) NOT NULL,
+  country    CHAR(2)      NOT NULL,
+  status     ENUM('active','suspended','closed') NOT NULL DEFAULT 'active',
+  joined_at  DATE         NOT NULL,
+  PRIMARY KEY (seller_id),
+  UNIQUE KEY uq_seller_email (email)
+) ENGINE=InnoDB;
+
+CREATE TABLE customers (
+  customer_id  INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name         VARCHAR(120) NOT NULL,
+  email        VARCHAR(255) NOT NULL,
+  country      CHAR(2)      NOT NULL,
+  signup_date  DATE         NOT NULL,
+  PRIMARY KEY (customer_id),
+  UNIQUE KEY uq_customer_email (email)
+) ENGINE=InnoDB;
+
+CREATE TABLE products (
+  product_id   INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  seller_id    INT UNSIGNED NOT NULL,
+  category_id  INT UNSIGNED NOT NULL,
+  title        VARCHAR(200) NOT NULL,
+  description  TEXT         NOT NULL,
+  price        DECIMAL(10,2) NOT NULL CHECK (price >= 0),
+  stock        INT UNSIGNED NOT NULL DEFAULT 0,
+  is_active    TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at   DATE         NOT NULL,
+  PRIMARY KEY (product_id),
+  CONSTRAINT fk_products_seller   FOREIGN KEY (seller_id)   REFERENCES sellers (seller_id),
+  CONSTRAINT fk_products_category FOREIGN KEY (category_id) REFERENCES categories (category_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE orders (
+  order_id      BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  customer_id   INT UNSIGNED NOT NULL,
+  order_date    DATE         NOT NULL,
+  status        ENUM('placed','shipped','delivered','returned','cancelled') NOT NULL,
+  total_amount  DECIMAL(12,2) NOT NULL DEFAULT 0,
+  PRIMARY KEY (order_id),
+  CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers (customer_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE order_items (
+  order_item_id  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  order_id       BIGINT UNSIGNED NOT NULL,
+  product_id     INT UNSIGNED NOT NULL,
+  seller_id      INT UNSIGNED NOT NULL,          -- denormalised: seller at time of sale
+  quantity       INT UNSIGNED NOT NULL CHECK (quantity > 0),
+  unit_price     DECIMAL(10,2) NOT NULL,         -- price at time of sale
+  returned       TINYINT(1)   NOT NULL DEFAULT 0,
+  PRIMARY KEY (order_item_id),
+  CONSTRAINT fk_items_order   FOREIGN KEY (order_id)   REFERENCES orders (order_id),
+  CONSTRAINT fk_items_product FOREIGN KEY (product_id) REFERENCES products (product_id),
+  CONSTRAINT fk_items_seller  FOREIGN KEY (seller_id)  REFERENCES sellers (seller_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE reviews (
+  review_id    BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  product_id   INT UNSIGNED NOT NULL,
+  customer_id  INT UNSIGNED NOT NULL,
+  rating       TINYINT UNSIGNED NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  title        VARCHAR(150) NULL,
+  body         TEXT NULL,
+  created_at   DATE NOT NULL,
+  PRIMARY KEY (review_id),
+  UNIQUE KEY uq_review_once (product_id, customer_id),   -- one review per customer per product
+  CONSTRAINT fk_reviews_product  FOREIGN KEY (product_id)  REFERENCES products (product_id),
+  CONSTRAINT fk_reviews_customer FOREIGN KEY (customer_id) REFERENCES customers (customer_id)
+) ENGINE=InnoDB;
